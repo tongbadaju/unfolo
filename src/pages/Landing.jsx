@@ -8,7 +8,7 @@ export default function Instructions() {
   const scrollToHowItWorks = () => {
     const section = document.getElementById("how-it-works-section");
     if (section) {
-      const yOffset = -80; // adjust based on your header height
+      const yOffset = -40; // adjust based on your header height
       const y = section.getBoundingClientRect().top + window.scrollY + yOffset;
       window.scrollTo({ top: y, behavior: "smooth" });
     }
@@ -60,25 +60,20 @@ export default function Instructions() {
             <strong className="text-lg">Request your Instagram data:</strong>
             <ol className="list-decimal pl-6 mt-4 space-y-3 text-base">
               <li>Open the Instagram app and go to your profile.</li>
-              <li>Tap the menu (☰) in the top right, then select <em>Your activity</em>.</li>
-              <li>Choose <em>Download your information</em>.</li>
-              <li>
-                Tap <strong>Download or transfer information</strong>, select your profile, then tap <strong>Next</strong>.
-              </li>
-              <li>Select <strong>Some of your information</strong>.</li>
-              <li>
-                Scroll to <strong>Connections</strong> and choose only <strong>Followers and Following</strong>, then tap <strong>Next</strong>.
-              </li>
-              <li>
-                Under delivery method, choose <strong>Download to device</strong> and tap <strong>Next</strong>.
-              </li>
+              <li>Tap the menu (☰) in the top right.</li>
+              <li>Go to <strong>Accounts Center</strong>.</li>
+              <li>Select <strong>Your information and permissions</strong>.</li>
+              <li>Select <strong>Download your information</strong>.</li>
+              <li>Select <strong>Create export</strong>.</li>
+              <li>Select <strong>Export to device</strong>.</li>
               <li>
                 Set the following:
                 <ul className="list-disc pl-6 mt-2 space-y-1">
+                  <li><strong>Customise information:</strong> All time</li>
                   <li><strong>Date range:</strong> All time</li>
                   <li><strong>Format:</strong> JSON</li>
                 </ul>
-                Then tap <strong>Create files</strong>.
+                Then tap <strong>Start export</strong>.
               </li>
             </ol>
           </li>
@@ -87,7 +82,9 @@ export default function Instructions() {
             <strong className="text-lg">Download your ZIP file:</strong>
             <ol className="list-decimal pl-6 mt-4 space-y-3 text-base">
               <li>Instagram will notify you once your file is ready (usually within 5-10 minutes).</li>
-              <li>Follow the link from the notification/email and download the ZIP file.</li>
+              <li>Follow the link from the notification/email or go 
+                to the same section in the app and download the ZIP file by entering your Instagram password. 
+              </li>
             </ol>
           </li>
 
