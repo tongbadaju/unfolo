@@ -8,8 +8,9 @@ import Tutorial from './pages/Tutorial';
 
 export default function App() {
   return (
+    // Router wraps the whole app to enable client-side navigation
     <Router>
-      <div className="min-h-screen flex flex-col bg-gray-100">
+      <div className="min-h-screen flex flex-col">
         <Navbar />
 
         <main className="flex flex-col items-center flex-grow mt-15">

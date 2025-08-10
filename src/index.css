@@ -3,3 +3,7 @@
 :root {
   --color-primary: #74C443;
 }
+
+body, #root, .main-content {
+  padding-top: 0;
+}
