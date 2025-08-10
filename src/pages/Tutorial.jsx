@@ -105,8 +105,8 @@ const Tutorial = () => {
         <li>
           <strong className="font-semibold text-[var(--color-primary)]">Step 9: Upload your ZIP file to Unfolo</strong>
           <p className="mt-4 text-base">
-            Once downloaded, come back to Unfolo and click the <strong>Choose File</strong> button. Upload the downloaded file
-            and then click on <strong>Discover Unfollowers</strong> button.
+            Once downloaded, come back to Unfolo and <strong>click</strong> or <strong>drag and drop</strong> your ZIP file onto the dropzone. 
+            After the file is added, click on the <strong>Analyze Followers</strong> button.
           </p>
           <img
             src="tutorial/step9.png"
