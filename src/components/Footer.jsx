@@ -16,7 +16,7 @@ const Footer = () => {
             <ul className="mt-9 flex flex-wrap justify-center gap-6 md:gap-8 lg:gap-12">
                 <li>
                     <a 
-                        href="https://tushar-rai.vercel.app/about"
+                        href="https://tushar-rai.vercel.app/"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-gray-700 transition hover:text-[var(--color-primary)]" 
