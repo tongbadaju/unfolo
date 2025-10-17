@@ -7,6 +7,8 @@ export default function UploadPage() {
   const navigate = useNavigate();
   const [notFollowingBack, setNotFollowingBack] = useState([]);
   const [fans, setFans] = useState([]);
+  // New state for pending requests
+  const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState(null);
   const [showResults, setShowResults] = useState(false);
@@ -14,7 +16,6 @@ export default function UploadPage() {
   const resultsRef = useRef(null);
   const [error, setError] = useState(null);
 
-  // Triggered when a file is selected from the input
   const handleFileSelect = (e) => {
     const selectedFile = e.target.files[0];
     if (!selectedFile) return;
@@ -29,7 +30,6 @@ export default function UploadPage() {
     setError(null);
   };
 
-  // Reads and processes the uploaded Instagram ZIP file
   const processFile = async () => {
     if (!file) {
       alert('Please upload a ZIP file first.');
@@ -42,76 +42,72 @@ export default function UploadPage() {
       const zip = new JSZip();
       const loadedZip = await zip.loadAsync(file);
 
-      // Locate the followers JSON file inside Instagram’s exported folder structure
       const followersPath = Object.keys(loadedZip.files).find(path =>
-        path.endsWith('connections/followers_and_following/followers_1.json') ||
-        path.endsWith('connections/followers_and_following/followers.json')
+        path.endsWith('connections/followers_and_following/followers_1.json')
       );
-
-      // Locate the following JSON file
       const followingPath = Object.keys(loadedZip.files).find(path =>
         path.endsWith('connections/followers_and_following/following.json')
       );
+      
+      // ✅ New: Find the pending requests file (it's optional)
+      const pendingRequestsPath = Object.keys(loadedZip.files).find(path =>
+        path.endsWith('connections/followers_and_following/pending_follow_requests.json')
+      );
 
       if (!followersPath || !followingPath) {
-        alert('Required JSON files not found in ZIP.');
+        alert('Required files (followers_1.json, following.json) not found in ZIP.');
         setLoading(false);
         return;
       }
 
-      // Extract file contents as text
       const followersRaw = await loadedZip.files[followersPath].async('string');
       const followingRaw = await loadedZip.files[followingPath].async('string');
 
-      // Parse JSON strings into JS objects
       const followersData = JSON.parse(followersRaw);
       const followingData = JSON.parse(followingRaw);
 
-      // Flatten nested "string_list_data" arrays to get just usernames of followers
+      // ✅ New: Process pending requests if the file exists
+      let pendingRequestsList = [];
+      if (pendingRequestsPath) {
+        const pendingRequestsRaw = await loadedZip.files[pendingRequestsPath].async('string');
+        const pendingRequestsData = JSON.parse(pendingRequestsRaw);
+        // The structure is nested like the followers file
+        pendingRequestsList = pendingRequestsData.relationships_follow_requests_sent.flatMap(item =>
+          item.string_list_data.map(entry => entry.value)
+        );
+      }
+
       const followers = followersData.flatMap(item =>
         item.string_list_data.map(entry => entry.value)
       );
+      
+      const following = followingData.relationships_following.map(item => item.title);
 
-      // Flatten following list
-      const following = followingData.relationships_following.flatMap(item =>
-        item.string_list_data.map(entry => entry.value)
-      );
-
-      // Users you follow but who don't follow you back
       const notFollowing = following.filter(user => !followers.includes(user));
-
-      // Users who follow you but you don't follow back
       const fansList = followers.filter(user => !following.includes(user));
 
       setNotFollowingBack(notFollowing);
       setFans(fansList);
+      setPendingRequests(pendingRequestsList); // Set the new state
       setShowResults(true);
 
-      // Smooth scroll to results section with an offset (to avoid hiding behind fixed elements)
       setTimeout(() => {
-        if (resultsRef.current) {
-          const elementTop = resultsRef.current.getBoundingClientRect().top + window.scrollY;
-          const offset = -80; 
-          window.scrollTo({
-            top: elementTop + offset,
-            behavior: 'smooth',
-          });
-        }
-      }, 20);
+        resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
 
     } catch (err) {
-      alert('Error processing ZIP file.');
+      alert('Error processing ZIP file. It might be corrupted or in an unexpected format.');
       console.error(err);
     }
 
     setLoading(false);
   };
 
-  // Resets the state when deleting the uploaded file
   const handleDelete = () => {
     setFile(null);
     setNotFollowingBack([]);
     setFans([]);
+    setPendingRequests([]); // Reset the new state
     setShowResults(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -123,12 +119,12 @@ export default function UploadPage() {
           Instagram Follower Analysis
         </h1>
         <p className="text-gray-600">
-          Upload your Instagram data export to see who doesn't follow you back
+          Upload your Instagram data to analyze your followers
         </p>
       </div>
 
-      {/* File Upload Section */}
       <div className="bg-white p-6 rounded-lg shadow-sm">
+        {/* ... (rest of the JSX is the same as before) ... */}
         {!file ? (
           <div className="space-y-4">
             <div 
@@ -249,20 +245,23 @@ export default function UploadPage() {
         )}
       </div>
 
-      {/* Results */}
       {showResults && !loading && (
         <div ref={resultsRef} className="mt-8 animate-fade-in">
-          <ResultsList unfollowers={notFollowingBack} fans={fans} />
+          {/* ✅ Pass the new prop to the results list */}
+          <ResultsList 
+            unfollowers={notFollowingBack} 
+            fans={fans} 
+            pendingRequests={pendingRequests}
+          />
         </div>
       )}
 
-      {/* Instructions */}
       {!showResults && (
         <div className="mt-8 flex gap-2 bg-[var(--color-primary)]/10 p-3 rounded-lg border border-[var(--color-primary)]/20 text-[var(--color-primary)]">
           <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
             <path 
-              fill-rule="evenodd" 
-              clip-rule="evenodd" 
+              fillRule="evenodd" 
+              clipRule="evenodd" 
               d="M12 19.5C16.1421 19.5 19.5 16.1421 19.5 12C19.5 7.85786 16.1421 4.5 
               12 4.5C7.85786 4.5 4.5 7.85786 4.5 12C4.5 16.1421 7.85786 19.5 12 19.5ZM12 
               21C16.9706 21 21 16.9706 21 12C21 7.02944 16.9706 3 12 3C7.02944 3 3 7.02944 
