@@ -1,35 +1,100 @@
-import React, { useState, useRef } from 'react';
-import JSZip from 'jszip';
+import React, { useState, useRef, useCallback } from 'react';
+import JSZip from 'jszip'; // A library for reading .zip files in JavaScript.
 import ResultsList from '../components/ResultsList';
 import { useNavigate } from 'react-router-dom';
 
 export default function UploadPage() {
   const navigate = useNavigate();
+  // State to hold the final lists of users.
   const [notFollowingBack, setNotFollowingBack] = useState([]);
   const [fans, setFans] = useState([]);
-  // New state for pending requests
   const [pendingRequests, setPendingRequests] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [file, setFile] = useState(null);
-  const [showResults, setShowResults] = useState(false);
-  const fileInputRef = useRef(null);
-  const resultsRef = useRef(null);
-  const [error, setError] = useState(null);
 
-  const handleFileSelect = (e) => {
-    const selectedFile = e.target.files[0];
+  // UI state management.
+  const [loading, setLoading] = useState(false); // Manages the loading spinner during processing.
+  const [file, setFile] = useState(null); // Holds the uploaded .zip file object.
+  const [showResults, setShowResults] = useState(false); // Toggles the visibility of the results section.
+  const [error, setError] = useState(null); // Stores any error messages to display to the user.
+  const [isDragging, setIsDragging] = useState(false); // Tracks if a file is being dragged over the dropzone for UI feedback.
+
+  // Refs to interact with DOM elements directly.
+  const fileInputRef = useRef(null); // A reference to the hidden file input element.
+  const resultsRef = useRef(null); // A reference to the results container for smooth scrolling.
+
+  /**
+   * A centralized function to validate and set the uploaded file.
+   * This is used by both the file input and the drag-and-drop handler.
+   * @param {File} selectedFile - The file object to validate.
+   */
+  const validateAndSetFile = (selectedFile) => {
     if (!selectedFile) return;
 
+    // Crucial check to ensure the user uploads the correct file type.
     if (!selectedFile.name.endsWith('.zip')) {
       setError('Please select a .zip file');
-      e.target.value = '';
       return;
     }
+    // If valid, update the state.
     setFile(selectedFile);
     setShowResults(false);
     setError(null);
   };
+  
+  /**
+   * Handles file selection when the user clicks the upload area.
+   * @param {React.ChangeEvent<HTMLInputElement>} e - The input change event.
+   */
+  const handleFileSelect = (e) => {
+    validateAndSetFile(e.target.files[0]);
+    // Important: Reset the input value to allow re-uploading the same file if needed.
+    e.target.value = '';
+  };
 
+  // --- Drag and Drop Event Handlers ---
+  // useCallback is used for performance optimization, preventing these functions
+  // from being recreated on every render unless their dependencies change.
+
+  const handleDragEnter = useCallback((e) => {
+    e.preventDefault(); // Prevents the browser's default behavior (e.g., opening the file).
+    e.stopPropagation(); // Stops the event from bubbling up to parent elements.
+    setIsDragging(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  }, []);
+
+  /**
+   * This handler is essential. Without preventing the default behavior on dragOver,
+   * the 'drop' event will not fire.
+   */
+  const handleDragOver = useCallback((e) => {
+    e.preventDefault(); 
+    e.stopPropagation();
+  }, []);
+
+  /**
+   * Handles the actual file drop, validates it, and updates the state.
+   */
+  const handleDrop = useCallback((e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+
+    // Access the dropped files from the dataTransfer object.
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+      validateAndSetFile(e.dataTransfer.files[0]);
+      e.dataTransfer.clearData(); // Recommended for cleanup.
+    }
+  }, []);
+
+
+  /**
+   * The core logic for processing the uploaded ZIP file.
+   * This function is asynchronous because reading and unzipping files takes time.
+   */
   const processFile = async () => {
     if (!file) {
       alert('Please upload a ZIP file first.');
@@ -39,58 +104,68 @@ export default function UploadPage() {
     setLoading(true);
 
     try {
+      // Initialize JSZip and load the file from memory.
       const zip = new JSZip();
       const loadedZip = await zip.loadAsync(file);
 
+      // --- Find the required JSON files within the ZIP structure ---
+      // This is the most critical part, as it relies on Instagram's data export structure.
       const followersPath = Object.keys(loadedZip.files).find(path =>
         path.endsWith('connections/followers_and_following/followers_1.json')
       );
       const followingPath = Object.keys(loadedZip.files).find(path =>
         path.endsWith('connections/followers_and_following/following.json')
       );
-      
-      // ✅ New: Find the pending requests file (it's optional)
+      // The pending requests file is optional, so the app won't break if it's not found.
       const pendingRequestsPath = Object.keys(loadedZip.files).find(path =>
         path.endsWith('connections/followers_and_following/pending_follow_requests.json')
       );
 
+      // A crucial guard clause to ensure the essential files are present.
       if (!followersPath || !followingPath) {
         alert('Required files (followers_1.json, following.json) not found in ZIP.');
         setLoading(false);
         return;
       }
 
+      // --- Asynchronously read the content of each file as a string ---
       const followersRaw = await loadedZip.files[followersPath].async('string');
       const followingRaw = await loadedZip.files[followingPath].async('string');
 
+      // --- Parse the JSON strings into JavaScript objects ---
       const followersData = JSON.parse(followersRaw);
       const followingData = JSON.parse(followingRaw);
 
-      // ✅ New: Process pending requests if the file exists
+      // Process pending requests only if the file was found.
       let pendingRequestsList = [];
       if (pendingRequestsPath) {
         const pendingRequestsRaw = await loadedZip.files[pendingRequestsPath].async('string');
         const pendingRequestsData = JSON.parse(pendingRequestsRaw);
-        // The structure is nested like the followers file
+        // Extract usernames from the nested structure.
         pendingRequestsList = pendingRequestsData.relationships_follow_requests_sent.flatMap(item =>
           item.string_list_data.map(entry => entry.value)
         );
       }
 
+      // --- Extract usernames from the complex data structures ---
       const followers = followersData.flatMap(item =>
         item.string_list_data.map(entry => entry.value)
       );
       
+      // The 'following' file has a different structure, so we map over `item.title`.
       const following = followingData.relationships_following.map(item => item.title);
 
+      // --- Core comparison logic to find unfollowers and fans ---
       const notFollowing = following.filter(user => !followers.includes(user));
       const fansList = followers.filter(user => !following.includes(user));
 
+      // --- Update the state with the final results ---
       setNotFollowingBack(notFollowing);
       setFans(fansList);
-      setPendingRequests(pendingRequestsList); // Set the new state
+      setPendingRequests(pendingRequestsList);
       setShowResults(true);
 
+      // Smoothly scroll down to the results section for a better user experience.
       setTimeout(() => {
         resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       }, 100);
@@ -103,11 +178,14 @@ export default function UploadPage() {
     setLoading(false);
   };
 
+  /**
+   * Resets the entire application state to allow for a new file upload.
+   */
   const handleDelete = () => {
     setFile(null);
     setNotFollowingBack([]);
     setFans([]);
-    setPendingRequests([]); // Reset the new state
+    setPendingRequests([]);
     setShowResults(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -124,12 +202,23 @@ export default function UploadPage() {
       </div>
 
       <div className="bg-white p-6 rounded-lg shadow-sm">
-        {/* ... (rest of the JSX is the same as before) ... */}
+        {/* Conditional rendering: Show the upload area if no file is selected. */}
         {!file ? (
           <div className="space-y-4">
+            {/* The Dropzone Area */}
             <div 
-              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center cursor-pointer hover:border-[var(--color-primary)] transition-colors"
+              // Dynamically change styles when a file is dragged over.
+              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+                isDragging
+                  ? 'border-[var(--color-primary)] bg-violet-50'
+                  : 'border-gray-300 hover:border-[var(--color-primary)]'
+              }`}
+              // Attach all necessary event handlers for both click and drag-and-drop.
               onClick={() => fileInputRef.current?.click()}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
             >
               <svg
                 className="mx-auto h-12 w-12 text-[var(--color-primary)]"
@@ -155,6 +244,7 @@ export default function UploadPage() {
               </p>
             </div>
             
+            {/* The actual file input is hidden but triggered programmatically by the div's onClick. */}
             <input
               type="file"
               accept=".zip"
@@ -164,6 +254,7 @@ export default function UploadPage() {
             />
           </div>
         ) : (
+          // Otherwise, show the selected file and the "Analyze" button.
           <div className="space-y-4">
             <div className="flex items-center justify-between bg-gray-50 p-3 rounded-lg">
               <div className="flex items-center space-x-2 overflow-hidden">
@@ -238,6 +329,7 @@ export default function UploadPage() {
           </div>
         )}
 
+        {/* Display error messages if any exist. */}
         {error && (
           <div className="mt-4 p-3 bg-red-50 text-red-700 rounded-lg text-sm">
             {error}
@@ -245,9 +337,9 @@ export default function UploadPage() {
         )}
       </div>
 
+      {/* Conditionally render the results list only when processing is complete. */}
       {showResults && !loading && (
         <div ref={resultsRef} className="mt-8 animate-fade-in">
-          {/* ✅ Pass the new prop to the results list */}
           <ResultsList 
             unfollowers={notFollowingBack} 
             fans={fans} 
@@ -256,6 +348,7 @@ export default function UploadPage() {
         </div>
       )}
 
+      {/* Show tutorial link when results are not yet visible. */}
       {!showResults && (
         <div className="mt-8 flex gap-2 bg-[var(--color-primary)]/10 p-3 rounded-lg border border-[var(--color-primary)]/20 text-[var(--color-primary)]">
           <svg className="w-6 h-6" viewBox="0 0 24 24" fill="currentColor">
