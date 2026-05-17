@@ -36,7 +36,7 @@ const useCopyToClipboard = () => {
  * The main component responsible for displaying the analysis results in tabs.
  * @param {{unfollowers: string[], fans: string[], pendingRequests: string[]}} props - The lists of users.
  */
-export default function ResultsList({ unfollowers, fans, pendingRequests }) {
+export default function ResultsList({ unfollowers, fans, pendingRequests, recentlyUnfollowed = [], blockedProfiles = [] }) {
   // State to manage which tab ('unfollowers', 'fans', 'pending') is currently active.
   const [activeTab, setActiveTab] = useState("unfollowers");
   // State to hold the user's input from the search bar.
@@ -57,19 +57,25 @@ export default function ResultsList({ unfollowers, fans, pendingRequests }) {
     unfollowers: unfollowers.filter(u => u.toLowerCase().includes(searchTerm.toLowerCase())),
     fans: fans.filter(u => u.toLowerCase().includes(searchTerm.toLowerCase())),
     pending: pendingRequests.filter(u => u.toLowerCase().includes(searchTerm.toLowerCase())),
-  }), [unfollowers, fans, pendingRequests, searchTerm]);
+    recentlyUnfollowed: recentlyUnfollowed.filter(u => u.toLowerCase().includes(searchTerm.toLowerCase())),
+    blocked: blockedProfiles.filter(u => u.toLowerCase().includes(searchTerm.toLowerCase())),
+  }), [unfollowers, fans, pendingRequests, recentlyUnfollowed, blockedProfiles, searchTerm]);
 
   // Determines which filtered list is currently active based on the activeTab state.
   const activeList = 
     activeTab === "unfollowers" ? lists.unfollowers :
     activeTab === "fans" ? lists.fans :
-    lists.pending;
+    activeTab === "pending" ? lists.pending :
+    activeTab === "recentlyUnfollowed" ? lists.recentlyUnfollowed :
+    lists.blocked;
 
   // Gets the length of the *original*, unfiltered list for the current tab.
   const originalListLength = 
     activeTab === "unfollowers" ? unfollowers.length :
     activeTab === "fans" ? fans.length :
-    pendingRequests.length;
+    activeTab === "pending" ? pendingRequests.length :
+    activeTab === "recentlyUnfollowed" ? recentlyUnfollowed.length :
+    blockedProfiles.length;
 
   /**
    * A helper function to render the content of a list.
@@ -90,7 +96,9 @@ export default function ResultsList({ unfollowers, fans, pendingRequests }) {
           <p className="text-gray-500 mt-1">
             {type === "unfollowers" ? "Everyone you follow is following you back." : 
              type === "fans" ? "You're following back all of your fans." :
-             "You have no pending follow requests."}
+             type === "pending" ? "You have no pending follow requests." :
+             type === "recentlyUnfollowed" ? "You haven't recently unfollowed anyone." :
+             "You have no blocked profiles."}
           </p>
         </div>
       );
@@ -115,10 +123,12 @@ export default function ResultsList({ unfollowers, fans, pendingRequests }) {
     <div className="bg-white rounded-lg shadow-md w-full max-w-2xl overflow-hidden">
       {/* Tab Navigation */}
       <div className="border-b border-gray-200">
-        <nav className="flex">
+        <nav className="flex overflow-x-auto">
           <TabButton title="Not Following Back" count={unfollowers.length} active={activeTab === 'unfollowers'} onClick={() => setActiveTab('unfollowers')} />
           <TabButton title="Fans" count={fans.length} active={activeTab === 'fans'} onClick={() => setActiveTab('fans')} />
           <TabButton title="Pending" count={pendingRequests.length} active={activeTab === 'pending'} onClick={() => setActiveTab('pending')} />
+          <TabButton title="Recently Unfollowed" count={recentlyUnfollowed.length} active={activeTab === 'recentlyUnfollowed'} onClick={() => setActiveTab('recentlyUnfollowed')} />
+          <TabButton title="Blocked" count={blockedProfiles.length} active={activeTab === 'blocked'} onClick={() => setActiveTab('blocked')} />
         </nav>
       </div>
 
@@ -146,11 +156,11 @@ export default function ResultsList({ unfollowers, fans, pendingRequests }) {
       {/* Scrollable List Container */}
       <div className="max-h-[60vh] overflow-y-auto">
         {/* Conditional rendering to display the correct active list. */}
-        {activeTab === "unfollowers"
-          ? renderList(lists.unfollowers, "unfollowers")
-          : activeTab === "fans" 
-          ? renderList(lists.fans, "fans")
-          : renderList(lists.pending, "pending")}
+        {activeTab === "unfollowers" ? renderList(lists.unfollowers, "unfollowers") :
+         activeTab === "fans" ? renderList(lists.fans, "fans") :
+         activeTab === "pending" ? renderList(lists.pending, "pending") :
+         activeTab === "recentlyUnfollowed" ? renderList(lists.recentlyUnfollowed, "recentlyUnfollowed") :
+         renderList(lists.blocked, "blocked")}
       </div>
     </div>
   );

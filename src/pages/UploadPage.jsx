@@ -9,6 +9,8 @@ export default function UploadPage() {
   const [notFollowingBack, setNotFollowingBack] = useState([]);
   const [fans, setFans] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [recentlyUnfollowed, setRecentlyUnfollowed] = useState([]);
+  const [blockedProfiles, setBlockedProfiles] = useState([]);
 
   // UI state management.
   const [loading, setLoading] = useState(false); // Manages the loading spinner during processing.
@@ -120,6 +122,12 @@ export default function UploadPage() {
       const pendingRequestsPath = Object.keys(loadedZip.files).find(path =>
         path.endsWith('connections/followers_and_following/pending_follow_requests.json')
       );
+      const recentlyUnfollowedPath = Object.keys(loadedZip.files).find(path =>
+        path.endsWith('connections/followers_and_following/recently_unfollowed_profiles.json')
+      );
+      const blockedProfilesPath = Object.keys(loadedZip.files).find(path =>
+        path.endsWith('connections/followers_and_following/blocked_profiles.json')
+      );
 
       // A crucial guard clause to ensure the essential files are present.
       if (!followersPath || !followingPath) {
@@ -141,10 +149,46 @@ export default function UploadPage() {
       if (pendingRequestsPath) {
         const pendingRequestsRaw = await loadedZip.files[pendingRequestsPath].async('string');
         const pendingRequestsData = JSON.parse(pendingRequestsRaw);
-        // Extract usernames from the nested structure.
-        pendingRequestsList = pendingRequestsData.relationships_follow_requests_sent.flatMap(item =>
-          item.string_list_data.map(entry => entry.value)
-        );
+        
+        // Handle different formats of pending requests (Instagram format changes)
+        if (Array.isArray(pendingRequestsData)) {
+          // New format: array of items with label_values
+          pendingRequestsList = pendingRequestsData.flatMap(item => {
+            const usernameLabel = item.label_values?.find(lv => lv.label === 'Username');
+            return usernameLabel ? [usernameLabel.value] : [];
+          });
+        } else if (pendingRequestsData.relationships_follow_requests_sent) {
+          // Old format
+          pendingRequestsList = pendingRequestsData.relationships_follow_requests_sent.flatMap(item =>
+            item.string_list_data.map(entry => entry.value)
+          );
+        }
+      }
+
+      // Process recently unfollowed only if the file was found.
+      let recentlyUnfollowedList = [];
+      if (recentlyUnfollowedPath) {
+        const raw = await loadedZip.files[recentlyUnfollowedPath].async('string');
+        const data = JSON.parse(raw);
+        if (Array.isArray(data)) {
+          recentlyUnfollowedList = data.flatMap(item => {
+            const usernameLabel = item.label_values?.find(lv => lv.label === 'Username');
+            return usernameLabel ? [usernameLabel.value] : [];
+          });
+        }
+      }
+
+      // Process blocked profiles only if the file was found.
+      let blockedProfilesList = [];
+      if (blockedProfilesPath) {
+        const raw = await loadedZip.files[blockedProfilesPath].async('string');
+        const data = JSON.parse(raw);
+        if (Array.isArray(data)) {
+          blockedProfilesList = data.flatMap(item => {
+            const usernameLabel = item.label_values?.find(lv => lv.label === 'Username');
+            return usernameLabel ? [usernameLabel.value] : [];
+          });
+        }
       }
 
       // --- Extract usernames from the complex data structures ---
@@ -163,6 +207,8 @@ export default function UploadPage() {
       setNotFollowingBack(notFollowing);
       setFans(fansList);
       setPendingRequests(pendingRequestsList);
+      setRecentlyUnfollowed(recentlyUnfollowedList);
+      setBlockedProfiles(blockedProfilesList);
       setShowResults(true);
 
       // Smoothly scroll down to the results section for a better user experience.
@@ -186,6 +232,8 @@ export default function UploadPage() {
     setNotFollowingBack([]);
     setFans([]);
     setPendingRequests([]);
+    setRecentlyUnfollowed([]);
+    setBlockedProfiles([]);
     setShowResults(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
@@ -344,6 +392,8 @@ export default function UploadPage() {
             unfollowers={notFollowingBack} 
             fans={fans} 
             pendingRequests={pendingRequests}
+            recentlyUnfollowed={recentlyUnfollowed}
+            blockedProfiles={blockedProfiles}
           />
         </div>
       )}
